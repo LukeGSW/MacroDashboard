@@ -1,0 +1,26 @@
+# FRED Macro Dashboard - Streamlit Configuration
+# ==============================================
+
+[theme]
+# Colori principali
+primaryColor = "#1f77b4"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#fafafa"
+
+# Font
+font = "sans serif"
+
+[server]
+# Configurazioni server
+maxUploadSize = 50
+enableXsrfProtection = true
+
+[browser]
+# Configurazioni browser
+gatherUsageStats = false
+
+[client]
+# Toolbar e sidebar
+showSidebarNavigation = true
+toolbarMode = "minimal"
