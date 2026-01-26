@@ -256,9 +256,18 @@ def get_indicator_data(
     if years is None:
         years = TIME_CONFIG["default_years"]
     
+    # Recupera config per questo indicatore
+    config = get_indicator_config(series_id)
+    transform = config.get("transform", "level")
+    
+    # Se serve YoY, chiedi 1 anno extra di dati per il calcolo
+    extra_years = 0
+    if apply_transform and transform == "yoy":
+        extra_years = 2  # Buffer extra per sicurezza
+    
     # Calcola date range
     end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=(years + extra_years) * 365)).strftime("%Y-%m-%d")
     
     # Fetch dati
     df = fetch_fred_series(series_id, start_date, end_date)
@@ -268,9 +277,12 @@ def get_indicator_data(
     
     # Applica trasformazione se richiesto
     if apply_transform:
-        config = get_indicator_config(series_id)
-        transform = config.get("transform", "level")
         df = transform_series(df, transform)
+    
+    # Filtra per mantenere solo il periodo richiesto dall'utente
+    if not df.empty and extra_years > 0:
+        cutoff_date = datetime.now() - timedelta(days=years * 365)
+        df = df[df["date"] >= cutoff_date].copy()
     
     return df
 
