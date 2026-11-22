@@ -14,6 +14,10 @@ ui.page_title(
 )
 
 area_keys = [k for _, _, ks in AREAS for k in ks]
+# il calendario si verifica prima di caricare i dati: se un dato è appena uscito,
+# le serie collegate vengono riscaricate e il cruscotto mostra già il valore nuovo
+with st.spinner("Verifico il calendario delle uscite..."):
+    calendar = cal.get_calendar()
 d = ui.load(signal_series_ids(area_keys + SNAPSHOT_GAUGES + cal.signals_for_releases()))
 
 # --- Semaforo per area ---------------------------------------------------------
@@ -70,21 +74,24 @@ for row in (SNAPSHOT_GAUGES[:4], SNAPSHOT_GAUGES[4:]):
 # --- Ultimi dati e prossime uscite -----------------------------------------------
 st.space("small")
 left, right = st.columns(2, gap="large")
-calendar = cal.get_calendar(days_back=10, days_ahead=14)
 with left:
-    ui.section("Ultimi dati usciti", help="Pubblicazioni degli ultimi 10 giorni con il valore più recente "
-                                           "e quello precedente. Elenco completo nella pagina Calendario.")
+    ui.section("Ultimi dati usciti", help="Pubblicazioni degli ultimi 10 giorni con il valore più recente e "
+                                           "quello precedente. Dopo ogni uscita la dashboard verifica che il "
+                                           "dato sia arrivato su FRED®: finché non arriva lo segnala, invece di "
+                                           "mostrare il valore vecchio. Elenco completo nella pagina Calendario.")
     if calendar is None:
         cal.unavailable_note()
     else:
-        st.markdown(cal.recent_html(calendar, d, max_items=8, min_importance=2), unsafe_allow_html=True)
+        st.markdown(cal.recent_html(calendar, d, days_back=10, max_items=8), unsafe_allow_html=True)
 with right:
-    ui.section("Prossime uscite", help="Pubblicazioni importanti in programma nelle prossime due settimane "
-                                        "(fonti: calendario FRED® e calendario FOMC della Fed). Le date possono cambiare.")
+    ui.section("Prossime uscite", help="Pubblicazioni in programma nelle prossime due settimane, con l'orario "
+                                        "italiano. Ogni data è confrontata in automatico tra il calendario "
+                                        "ufficiale dell'agenzia e il calendario FRED®: '⚠ da confermare' segnala "
+                                        "una data non verificata. Il link 'fonte' apre la pagina ufficiale.")
     if calendar is None:
         cal.unavailable_note()
     else:
-        st.markdown(cal.upcoming_html(calendar, max_items=10, min_importance=2), unsafe_allow_html=True)
+        st.markdown(cal.upcoming_html(calendar, days_ahead=14, max_items=10), unsafe_allow_html=True)
 
 ui.guide("Come leggere colori e soglie", """
 - **Verde**: valore in linea con un'economia in equilibrio o con condizioni finanziarie normali.

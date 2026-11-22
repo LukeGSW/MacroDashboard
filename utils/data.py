@@ -18,10 +18,11 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 import requests
@@ -188,6 +189,18 @@ class _SeriesStore:
         with self._lock:
             return {i: self._errors[i] for i in ids if i in self._errors and i not in self._data}
 
+    def fetched_each(self, ids: list[str]) -> dict[str, datetime]:
+        with self._lock:
+            return {i: datetime.fromtimestamp(self._data[i][0], tz=timezone.utc)
+                    for i in ids if i in self._data}
+
+    def mark_stale(self, ids: list[str]) -> None:
+        """Forza un nuovo download al prossimo accesso, tenendo il dato attuale se fallisce."""
+        with self._lock:
+            for i in ids:
+                if i in self._data:
+                    self._data[i] = (0.0, self._data[i][1])
+
 
 @st.cache_resource(show_spinner=False)
 def _store() -> _SeriesStore:
@@ -207,6 +220,41 @@ def fetched_at(ids) -> datetime | None:
 def missing(ids) -> dict[str, str]:
     """Serie mai scaricate con il relativo errore."""
     return _store().errors(list(ids))
+
+
+def fetched_each(ids) -> dict[str, datetime]:
+    """Ora (UTC) in cui ogni serie è stata scaricata l'ultima volta."""
+    return _store().fetched_each(list(ids))
+
+
+def mark_stale(ids) -> None:
+    """Le serie indicate verranno riscaricate al prossimo accesso (es. dopo un'uscita)."""
+    _store().mark_stale(list(ids))
+
+
+@st.cache_data(ttl=timedelta(minutes=15), show_spinner=False)
+def series_last_updated(series_ids: tuple[str, ...]) -> dict[str, pd.Timestamp]:
+    """Ora dell'ultimo aggiornamento su FRED® di ciascuna serie (vuoto senza chiave).
+
+    Serve a verificare che un dato sia davvero uscito alla data prevista.
+    """
+    key = api_key()
+    if not key or not series_ids:
+        return {}
+
+    def one(sid: str) -> tuple[str, pd.Timestamp | None]:
+        try:
+            js = _api_json("series", {"series_id": sid}, key, sid)
+            stamp = str(js["seriess"][0]["last_updated"])
+            if re.search(r"[+-]\d{2}$", stamp):  # es. "2026-11-13 07:44:02-06"
+                stamp += ":00"
+            return sid, pd.Timestamp(stamp).tz_convert("UTC")
+        except Exception:  # noqa: BLE001 - senza questa informazione il controllo si salta
+            return sid, None
+
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        found = dict(pool.map(one, series_ids))
+    return {k: v for k, v in found.items() if v is not None}
 
 
 # =============================================================================

@@ -71,6 +71,15 @@ Spread non sono mostrati: i proprietari richiedono un'autorizzazione preventiva 
 spread Moody's Baa - Treasury 10 anni.
 """)
 st.caption(f"Dati scaricati tramite l'API FRED® e conservati in cache per {CACHE_TTL_HOURS} ore.")
+st.markdown("""
+**Calendario delle uscite.** Le date sono lette in automatico dai calendari ufficiali pubblicati da
+[Federal Reserve](https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm) (riunioni FOMC e
+produzione industriale), [BEA](https://www.bea.gov/news/schedule) (PIL, redditi e spese delle famiglie) e
+[Census Bureau](https://www.census.gov/economic-indicators/calendar-listview.html) (vendite al dettaglio,
+cantieri), informazioni pubbliche del governo degli Stati Uniti, e confrontate con il calendario delle release
+FRED®. Per le uscite di BLS e DOL la fonte è il calendario FRED®. Le date possono cambiare: fa fede la pagina
+ufficiale dell'agenzia, raggiungibile dal link presente su ogni data.
+""")
 
 ui.section(
     "Soglie dei semafori",

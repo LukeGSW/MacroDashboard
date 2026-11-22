@@ -16,7 +16,7 @@ stime FOMC/CBO, soglie della letteratura) o alla distribuzione storica dal 1990.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable
 
 import pandas as pd
@@ -806,60 +806,63 @@ SNAPSHOT_GAUGES = ["core_pce_yoy", "cpi_yoy", "fedfunds", "unrate",
                    "t10y2y", "umcsent", "baa10y", "ip_yoy"]
 
 # =============================================================================
-# CALENDARIO (ID release FRED)
+# CALENDARIO DELLE USCITE
 # =============================================================================
+# Solo le pubblicazioni che contano davvero. Ogni data viene confrontata tra due
+# fonti indipendenti, dove possibile (logica in utils/cal.py):
+#   - il calendario ufficiale dell'agenzia, letto in automatico (utils/official.py);
+#   - il calendario delle release FRED® (API release/dates).
+# Il sito del BLS blocca la lettura automatica e il DOL non pubblica un calendario
+# annuale dei sussidi: per CPI, PPI, occupazione, JOLTS e sussidi la fonte è il
+# solo calendario FRED®, con i controlli successivi sull'arrivo del dato.
 
-
-# Giorno della decisione FOMC (secondo giorno di ogni riunione) dal calendario
-# ufficiale: federalreserve.gov/monetarypolicy/fomccalendars.htm.
-# Serve perché la release FRED 101 "FOMC Press Release" contiene serie giornaliere
-# e FRED la segna come uscita ogni giorno. Da aggiornare una volta l'anno, quando
-# la Fed pubblica le date dell'anno successivo (le date future sono provvisorie).
-# Escluso il "Monetary Policy Strategy Meeting" del 26-27 ottobre 2027.
-FOMC_DECISIONS: tuple[str, ...] = (
-    "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17",
-    "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09",
-    "2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09",
-    "2027-07-28", "2027-09-15", "2027-11-17",
-)
+_BLS = "https://www.bls.gov/schedule/news_release/{}.htm"
+_BEA_URL = "https://www.bea.gov/news/schedule"
+_CENSUS_URL = "https://www.census.gov/economic-indicators/calendar-listview.html"
 
 
 @dataclass(frozen=True)
 class Release:
     name: str
-    importance: int                 # 3 alta, 2 media, 1 bassa
-    signals: tuple[str, ...] = field(default_factory=tuple)
-    fixed_dates: tuple[str, ...] = ()       # date ufficiali al posto del calendario FRED
-    skip_dates_of: int | None = None        # scarta le date in comune con questa release
+    importance: int                 # 3 alta, 2 media
+    agency: str                     # agenzia che pubblica il dato
+    signals: tuple[str, ...]        # indicatori della dashboard aggiornati
+    fred_id: int | None             # release FRED® (seconda fonte, o unica per BLS e DOL)
+    official: tuple[str, ...]       # calendari ufficiali letti in automatico (utils/official.py)
+    time_et: str                    # orario abituale a New York se la fonte non lo indica
+    source_url: str                 # pagina ufficiale dove verificare la data
+    check_series: str | None        # serie FRED® che deve aggiornarsi dopo l'uscita
 
 
-RELEASES: dict[int, Release] = {
-    10: Release("Inflazione al consumo (CPI)", 3, ("cpi_yoy", "core_cpi_yoy")),
-    54: Release("Redditi e spese delle famiglie (PCE)", 3, ("core_pce_yoy", "pce_yoy", "psavert")),
-    50: Release("Rapporto sull'occupazione (payrolls e disoccupazione)", 3, ("unrate", "payrolls_mom")),
-    53: Release("PIL (BEA)", 3, ("gdp_qoq",)),
-    101: Release("Decisione FOMC sui tassi", 3, ("fedfunds",), fixed_dates=FOMC_DECISIONS),
-    326: Release("Proiezioni economiche FOMC (SEP)", 2, ()),
-    46: Release("Prezzi alla produzione (PPI)", 2, ("ppi_yoy",)),
-    180: Release("Richieste di sussidio di disoccupazione", 2, ("claims_4w",)),
-    192: Release("JOLTS: posti vacanti e dimissioni", 2, ("openings_ratio",)),
-    9: Release("Vendite al dettaglio", 2, ("retail_real_yoy",)),
-    13: Release("Produzione industriale e utilizzo capacità", 2, ("ip_yoy", "tcu")),
-    # FRED aggiorna alcune serie di questa release anche nei giorni delle vendite di
-    # case nuove (release 97), ma il rapporto su cantieri e permessi esce una volta al mese.
-    27: Release("Cantieri e permessi residenziali", 2, ("houst", "permit"), skip_dates_of=97),
-    91: Release("Fiducia consumatori (Univ. of Michigan)", 2, ("umcsent",)),
-    386: Release("GDPNow (Atlanta Fed)", 2, ("gdpnow",)),
-    97: Release("Vendite di case nuove", 1, ()),
-    171: Release("Prezzi delle case FHFA", 1, ("hpi_yoy",)),
-    190: Release("Tassi sui mutui (Freddie Mac)", 1, ("mortgage30",)),
-    191: Release("Sondaggio Fed sul credito bancario (SLOOS)", 1, ("drtscilm",)),
-    20: Release("Bilancio Fed (H.4.1)", 1, ("netliq",)),
-    21: Release("Moneta M2 (H.6)", 1, ("m2_yoy",)),
-    187: Release("Indice di stress St. Louis Fed", 1, ("stlfsi",)),
-    221: Release("Condizioni finanziarie Chicago Fed (NFCI)", 1, ("nfci",)),
-    296: Release("Sfitto e proprietà delle abitazioni", 1, ("rental_vac",)),
-    261: Release("Probabilità di recessione", 1, ("recprob",)),
+RELEASES: dict[str, Release] = {
+    # Per l'FOMC la release FRED® usata è quella delle proiezioni (SEP, 4 riunioni l'anno):
+    # la release "FOMC Press Release" contiene serie giornaliere e risulta uscita ogni giorno.
+    "fomc": Release("Decisione FOMC sui tassi", 3, "Fed", ("fedfunds",), 326,
+                    ("fomc_page", "fed_json"), "14:00",
+                    "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm", None),
+    "cpi": Release("Inflazione al consumo (CPI)", 3, "BLS", ("cpi_yoy", "core_cpi_yoy"), 10, (),
+                   "08:30", _BLS.format("cpi"), "CPIAUCSL"),
+    "pce": Release("Redditi e spese delle famiglie (PCE)", 3, "BEA", ("core_pce_yoy", "pce_yoy", "psavert"),
+                   54, ("bea",), "08:30", _BEA_URL, "PCEPILFE"),
+    "jobs": Release("Rapporto sull'occupazione (payrolls e disoccupazione)", 3, "BLS",
+                    ("unrate", "payrolls_mom"), 50, (), "08:30", _BLS.format("empsit"), "PAYEMS"),
+    "gdp": Release("PIL (BEA)", 3, "BEA", ("gdp_qoq",), 53, ("bea",), "08:30", _BEA_URL,
+                   "A191RL1Q225SBEA"),
+    "ppi": Release("Prezzi alla produzione (PPI)", 2, "BLS", ("ppi_yoy",), 46, (), "08:30",
+                   _BLS.format("ppi"), "PPIFIS"),
+    "retail": Release("Vendite al dettaglio", 2, "Census", ("retail_real_yoy",), 9, ("census",), "08:30",
+                      _CENSUS_URL, "RRSFS"),
+    "ip": Release("Produzione industriale e utilizzo capacità", 2, "Fed", ("ip_yoy", "tcu"), 13,
+                  ("g17_page", "fed_json"), "09:15",
+                  "https://www.federalreserve.gov/releases/g17/default.htm", "INDPRO"),
+    # FRED® associa a questa release anche i giorni delle vendite di case nuove: il
+    # confronto con il calendario Census le scarta.
+    "housing": Release("Cantieri e permessi residenziali", 2, "Census", ("houst", "permit"), 27, ("census",),
+                       "08:30", _CENSUS_URL, "HOUST"),
+    "jolts": Release("JOLTS: posti vacanti e dimissioni", 2, "BLS", ("openings_ratio",), 192, (), "10:00",
+                     _BLS.format("jolts"), "JTSJOL"),
+    "claims": Release("Richieste di sussidio di disoccupazione", 2, "DOL", ("claims_4w",), 180, (), "08:30",
+                      "https://www.dol.gov/newsroom/economicdata", "IC4WSA"),
 }
 
 DAILY_NOTE = ("Rendimenti dei Treasury, spread della curva, breakeven, tasso reale, Fed Funds "

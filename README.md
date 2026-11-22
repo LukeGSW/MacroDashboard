@@ -12,7 +12,7 @@ Realizzata con [Streamlit](https://streamlit.io) e i dati dell'API FRED® della 
 | Pagina | Contenuto |
 |---|---|
 | **Cruscotto** | Semaforo per area, 8 indicatori chiave, ultimi dati usciti e prossime pubblicazioni |
-| **Calendario dati** | Date delle prossime uscite (CPI, PCE, occupazione, PIL, FOMC, ...) e indicatori aggiornati |
+| **Calendario dati** | Date e orari italiani delle prossime uscite (FOMC, CPI, PCE, occupazione, PIL, ...), verificati in automatico su due fonti |
 | **Rischio recessione** | Curva dei rendimenti, regola di Sahm, probabilità di recessione, sussidi, credito; storico dei segnali con successi e falsi allarmi |
 | **Inflazione** | CPI, PCE, core, momentum a 3 e 6 mesi, componenti persistenti, breakeven, PPI |
 | **Lavoro** | Disoccupazione vs tasso naturale (CBO), payrolls, sussidi, salari, JOLTS, occupati 25-54 anni |
@@ -68,8 +68,10 @@ streamlit run app.py
 ```
 app.py              entrypoint: navigazione, controlli globali, header con link, footer legale
 config.py           brand, link, parametri, testi legali
-catalog.py          serie FRED®, indicatori, soglie, tooltip, aree del cruscotto, calendario
-utils/data.py       download con cache condivisa, limiti di frequenza, calendario release
+catalog.py          serie FRED®, indicatori, soglie, tooltip, aree del cruscotto, uscite del calendario
+utils/data.py       download con cache condivisa, limiti di frequenza, calendario release FRED®
+utils/official.py   lettura automatica dei calendari ufficiali (Fed, BEA, Census)
+utils/cal.py        confronto tra le fonti, controlli sull'arrivo dei dati, liste del calendario
 utils/transforms.py trasformazioni (a/a, annualizzati, liquidità netta, recessioni, ...)
 utils/signals.py    valutazione indicatori e soglie, testi dei tooltip
 utils/charts.py     grafici Plotly con lo stile Kriterion Quant
@@ -77,6 +79,22 @@ utils/ui.py         componenti di interfaccia condivisi
 views/              una pagina per file
 assets/             logo e icona
 ```
+
+## Calendario delle uscite: come vengono verificate le date
+
+Nessuna data è inserita a mano. Per ogni uscita la dashboard confronta due fonti indipendenti:
+
+- **Fed, BEA, Census**: calendario ufficiale letto in automatico (pagina FOMC e calendario JSON della Fed,
+  pagina G.17, calendario ICS della BEA, calendario indicatori Census) confrontato con il calendario FRED®.
+  Una data concorde è confermata; le date solo FRED® dove il calendario ufficiale ha già le date vengono
+  scartate (aggiornamenti secondari della release FRED®); ogni altro disaccordo è segnato "da confermare".
+- **BLS e DOL** (CPI, PPI, occupazione, JOLTS, sussidi): i siti non consentono la lettura automatica, quindi
+  la fonte è il calendario FRED®.
+- **Dopo ogni uscita** si verifica che la serie su FRED® sia stata aggiornata: se il dato manca da più di
+  24 ore l'uscita risulta "non pubblicata" e le date successive della stessa agenzia diventano da confermare
+  (es. uno shutdown). Se il dato è arrivato dopo l'ultimo download, le serie collegate vengono riscaricate.
+- Se un calendario ufficiale non risponde o cambia struttura, le date collegate risultano da confermare:
+  la dashboard non mostra mai come certa una data non verificata.
 
 ## Dati e licenze
 

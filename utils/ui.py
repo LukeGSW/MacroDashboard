@@ -82,6 +82,13 @@ h1, h2, h3 {{ letter-spacing: -0.01em; }}
 .kq-imp {{ font-size:0.72rem; font-weight:800; padding:1px 7px; border-radius:999px; margin-left:6px;
   border:1px solid var(--kq-line2); color: var(--kq-mut); }}
 .kq-imp.alta {{ color: {PALETTE['gold']}; border-color: {PALETTE['gold']}; }}
+.kq-time {{ color: var(--kq-txt); font-weight: 700; font-size: 0.82rem; }}
+.kq-check {{ font-size:0.72rem; font-weight:800; padding:1px 7px; border-radius:999px; margin-left:6px;
+  border:1px solid {PALETTE['gold']}; color: {PALETTE['gold']}; white-space:nowrap; cursor:help; }}
+.kq-warn {{ color: {PALETTE['gold']} !important; }}
+.kq-src {{ font-size: 0.74rem; color: var(--kq-mut) !important; text-decoration: none !important;
+  margin-left: 4px; white-space: nowrap; }}
+.kq-src:hover {{ color: var(--kq-teal) !important; }}
 
 /* Footer */
 .kq-footer {{ margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--kq-line);
