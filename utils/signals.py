@@ -43,7 +43,7 @@ def compute(key: str, data: dict[str, pd.Series]) -> pd.Series:
     try:
         s = SIGNALS[key].compute(data)
     except Exception:  # noqa: BLE001 - dati parziali: l'indicatore risulta non disponibile
-        return pd.Series(dtype=float)
+        return T.clean(None)
     return T.until_today(s)
 
 

@@ -68,7 +68,8 @@ with tab_past:
         st.dataframe(_table(past), hide_index=True, width="stretch")
 
 st.caption(
-    "Fonte: calendario delle release FRED®. Le date sono quelle programmate e possono cambiare; "
+    "Fonti: calendario delle release FRED® e, per le decisioni FOMC, calendario ufficiale della "
+    "Federal Reserve. Le date sono quelle programmate e possono cambiare; "
     "FRED® non indica l'orario: i dati principali USA escono in genere alle 8:30 di New York "
     "(14:30 in Italia), le decisioni FOMC alle 14:00 di New York (20:00 in Italia). "
     + DAILY_NOTE

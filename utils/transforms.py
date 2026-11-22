@@ -14,9 +14,13 @@ import pandas as pd
 
 
 def clean(s: pd.Series | None) -> pd.Series:
-    """Serie ordinata, numerica, senza NaN (vuota se None)."""
+    """Serie ordinata, numerica, senza NaN (vuota se None).
+
+    La serie vuota ha comunque un indice di date, così i filtri per data
+    (``s.index <= data``) funzionano anche quando una serie non è stata scaricata.
+    """
     if s is None or len(s) == 0:
-        return pd.Series(dtype=float)
+        return pd.Series(dtype=float, index=pd.DatetimeIndex([]))
     return pd.to_numeric(s, errors="coerce").dropna().sort_index()
 
 

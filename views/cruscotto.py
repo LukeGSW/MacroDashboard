@@ -80,7 +80,7 @@ with left:
         st.markdown(cal.recent_html(calendar, d, max_items=8, min_importance=2), unsafe_allow_html=True)
 with right:
     ui.section("Prossime uscite", help="Pubblicazioni importanti in programma nelle prossime due settimane "
-                                        "(fonte: calendario FRED®). Le date possono cambiare.")
+                                        "(fonti: calendario FRED® e calendario FOMC della Fed). Le date possono cambiare.")
     if calendar is None:
         cal.unavailable_note()
     else:

@@ -15,15 +15,40 @@ from utils import signals as S
 IMPORTANCE = {3: "alta", 2: "media", 1: "bassa"}
 
 
+def _clean(df: pd.DataFrame, window_days: int) -> pd.DataFrame:
+    """Toglie dal calendario FRED® le date che non sono vere pubblicazioni."""
+    df = df[df["date"].dt.weekday < 5]  # nessun dato USA esce nel fine settimana
+    # release aggiornate quasi ogni giorno (serie giornaliere): non sono "uscite"
+    counts = df.groupby("release_id")["date"].nunique()
+    df = df[~df["release_id"].isin(counts[counts > window_days / 2].index)]
+    for rid, rel in RELEASES.items():
+        if rel.skip_dates_of is not None:
+            other = df.loc[df["release_id"] == rel.skip_dates_of, "date"]
+            df = df[~((df["release_id"] == rid) & df["date"].isin(other))]
+    return df
+
+
+def _fixed_dates(days_back: int, days_ahead: int) -> pd.DataFrame:
+    """Date ufficiali (es. decisioni FOMC) che sostituiscono il calendario FRED®."""
+    today = pd.Timestamp(date.today())
+    rows = [(rid, pd.Timestamp(d)) for rid, rel in RELEASES.items() for d in rel.fixed_dates]
+    out = pd.DataFrame(rows, columns=["release_id", "date"])
+    return out[(out["date"] >= today - pd.Timedelta(days=days_back))
+               & (out["date"] <= today + pd.Timedelta(days=days_ahead))]
+
+
 def get_calendar(days_back: int, days_ahead: int) -> pd.DataFrame | None:
     """Release del catalogo nel periodo indicato, o None se non disponibile."""
+    fred_ids = tuple(sorted(r for r, rel in RELEASES.items() if not rel.fixed_dates))
     try:
-        df = data.release_dates(tuple(sorted(RELEASES)), days_back, days_ahead)
-    except data.DataUnavailable:
+        df = data.release_dates(fred_ids, days_back, days_ahead)
+    except Exception:  # noqa: BLE001 - chiave assente o API non raggiungibile
         return None
-    except Exception:  # noqa: BLE001
-        return None
-    df = df.copy()
+    df = _clean(df, days_back + days_ahead + 1)
+    fixed = _fixed_dates(days_back, days_ahead)
+    if not fixed.empty:
+        df = pd.concat([df, fixed], ignore_index=True)
+    df = df.drop_duplicates().sort_values(["date", "release_id"]).reset_index(drop=True)
     df["name"] = df["release_id"].map(lambda r: RELEASES[r].name)
     df["importance"] = df["release_id"].map(lambda r: RELEASES[r].importance)
     return df

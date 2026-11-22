@@ -810,11 +810,27 @@ SNAPSHOT_GAUGES = ["core_pce_yoy", "cpi_yoy", "fedfunds", "unrate",
 # =============================================================================
 
 
+# Giorno della decisione FOMC (secondo giorno di ogni riunione) dal calendario
+# ufficiale: federalreserve.gov/monetarypolicy/fomccalendars.htm.
+# Serve perché la release FRED 101 "FOMC Press Release" contiene serie giornaliere
+# e FRED la segna come uscita ogni giorno. Da aggiornare una volta l'anno, quando
+# la Fed pubblica le date dell'anno successivo (le date future sono provvisorie).
+# Escluso il "Monetary Policy Strategy Meeting" del 26-27 ottobre 2027.
+FOMC_DECISIONS: tuple[str, ...] = (
+    "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17",
+    "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09",
+    "2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09",
+    "2027-07-28", "2027-09-15", "2027-11-17",
+)
+
+
 @dataclass(frozen=True)
 class Release:
     name: str
     importance: int                 # 3 alta, 2 media, 1 bassa
     signals: tuple[str, ...] = field(default_factory=tuple)
+    fixed_dates: tuple[str, ...] = ()       # date ufficiali al posto del calendario FRED
+    skip_dates_of: int | None = None        # scarta le date in comune con questa release
 
 
 RELEASES: dict[int, Release] = {
@@ -822,14 +838,16 @@ RELEASES: dict[int, Release] = {
     54: Release("Redditi e spese delle famiglie (PCE)", 3, ("core_pce_yoy", "pce_yoy", "psavert")),
     50: Release("Rapporto sull'occupazione (payrolls e disoccupazione)", 3, ("unrate", "payrolls_mom")),
     53: Release("PIL (BEA)", 3, ("gdp_qoq",)),
-    101: Release("Decisione FOMC sui tassi", 3, ("fedfunds",)),
+    101: Release("Decisione FOMC sui tassi", 3, ("fedfunds",), fixed_dates=FOMC_DECISIONS),
     326: Release("Proiezioni economiche FOMC (SEP)", 2, ()),
     46: Release("Prezzi alla produzione (PPI)", 2, ("ppi_yoy",)),
     180: Release("Richieste di sussidio di disoccupazione", 2, ("claims_4w",)),
     192: Release("JOLTS: posti vacanti e dimissioni", 2, ("openings_ratio",)),
     9: Release("Vendite al dettaglio", 2, ("retail_real_yoy",)),
     13: Release("Produzione industriale e utilizzo capacità", 2, ("ip_yoy", "tcu")),
-    27: Release("Cantieri e permessi residenziali", 2, ("houst", "permit")),
+    # FRED aggiorna alcune serie di questa release anche nei giorni delle vendite di
+    # case nuove (release 97), ma il rapporto su cantieri e permessi esce una volta al mese.
+    27: Release("Cantieri e permessi residenziali", 2, ("houst", "permit"), skip_dates_of=97),
     91: Release("Fiducia consumatori (Univ. of Michigan)", 2, ("umcsent",)),
     386: Release("GDPNow (Atlanta Fed)", 2, ("gdpnow",)),
     97: Release("Vendite di case nuove", 1, ()),

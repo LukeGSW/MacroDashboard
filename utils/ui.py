@@ -288,10 +288,14 @@ def signal_chart(
             "kind": "bar" if bars and key in bars else "line",
             **({"color": colors[key]} if colors and key in colors else {}),
         })
+    if all(tr["series"].empty for tr in traces):
+        st.caption("Dati non disponibili al momento: verranno riprovati al prossimo aggiornamento.")
+        return shown
     first = SIGNALS[keys[0]]
     fig = charts.time_chart(traces, height=height, recessions=recession_periods(d), zero_line=zero_line,
                             hlines=hlines, hbands=hbands, suffix=first.suffix, decimals=first.decimals)
-    charts.show(fig, key=chart_key)
+    # chiave esplicita: grafici con parametri uguali non devono collidere
+    charts.show(fig, key=chart_key or f"chart_{'_'.join(keys)}_{title}")
     ids = [sid for k in keys for sid in SIGNALS[k].series]
     source_caption(ids, extra_source)
     return shown
