@@ -1,0 +1,16 @@
+# Segreti: la chiave FRED va solo nei secrets di Streamlit Cloud o in locale
+.streamlit/secrets.toml
+.env
+
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Strumenti locali
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,499 +1,270 @@
 """
-FRED Macro Dashboard - Chart Utilities
-=======================================
-Funzioni per creazione grafici Plotly: gauge, line charts, heatmaps.
+Grafici Plotly con lo stile Kriterion Quant
+===========================================
+Template unico, numeri all'italiana, bande di recessione NBER, watermark.
 """
+
+from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from typing import Optional, List, Dict, Tuple
-from datetime import datetime
+import plotly.io as pio
+import streamlit as st
 
-from config import GAUGE_CONFIG, RECESSIONS
+from catalog import Band
+from config import BRAND, LEVEL_COLORS, PALETTE, SERIES_COLORS
+
+TEMPLATE = "kq"
+FONT = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+PLOTLY_CONFIG = {
+    "displaylogo": False,
+    "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d", "toggleSpikelines"],
+    "toImageButtonOptions": {"format": "png", "scale": 2},
+}
+_DAY_MS = 86_400_000
 
 
-# =============================================================================
-# GAUGE CHARTS
-# =============================================================================
+def _rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
 
-def create_gauge(
-    value: float,
-    title: str,
-    gauge_range: List[float] = [0, 100],
-    thresholds: Dict[str, List[float]] = None,
-    target: Optional[float] = None,
-    units: str = "",
-    delta_reference: Optional[float] = None,
-    invert: bool = False,
-    height: int = None
+
+def register_template() -> None:
+    if TEMPLATE in pio.templates:
+        return
+    axis = dict(
+        gridcolor=PALETTE["line"], linecolor=PALETTE["line2"], zerolinecolor=PALETTE["line2"],
+        tickfont=dict(color=PALETTE["mut"], size=11), title=dict(font=dict(color=PALETTE["mut"], size=12)),
+        automargin=True,
+    )
+    t = go.layout.Template()
+    t.layout = go.Layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family=FONT, color=PALETTE["txt"], size=13),
+        colorway=SERIES_COLORS,
+        separators=",.",
+        xaxis=axis,
+        yaxis=axis,
+        hoverlabel=dict(bgcolor=PALETTE["card"], bordercolor=PALETTE["line2"],
+                        font=dict(family=FONT, color=PALETTE["txt"], size=12)),
+        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0,
+                    bgcolor="rgba(0,0,0,0)", font=dict(color=PALETTE["mut"], size=12)),
+        margin=dict(t=36, b=24, l=8, r=8),
+        hovermode="x unified",
+    )
+    pio.templates[TEMPLATE] = t
+
+
+register_template()
+
+
+def show(fig: go.Figure, key: str | None = None) -> None:
+    st.plotly_chart(fig, width="stretch", theme=None, config=PLOTLY_CONFIG, key=key)
+
+
+def _watermark(fig: go.Figure) -> None:
+    fig.add_annotation(
+        text=BRAND, xref="paper", yref="paper", x=0.995, y=0.03, xanchor="right", yanchor="bottom",
+        showarrow=False, font=dict(size=11, color=_rgba(PALETTE["txt"], 0.22)),
+    )
+
+
+def _date_axis(fig: go.Figure) -> None:
+    fig.update_xaxes(
+        type="date",
+        hoverformat="%d/%m/%Y",
+        tickformatstops=[
+            dict(dtickrange=[None, 40 * _DAY_MS], value="%d/%m/%y"),
+            dict(dtickrange=[40 * _DAY_MS, 300 * _DAY_MS], value="%m/%Y"),
+            dict(dtickrange=[300 * _DAY_MS, None], value="%Y"),
+        ],
+    )
+
+
+def add_recessions(fig: go.Figure, periods, x_min: pd.Timestamp, x_max: pd.Timestamp) -> None:
+    for start, end in periods or []:
+        if end < x_min or start > x_max:
+            continue
+        fig.add_vrect(x0=max(start, x_min), x1=min(end, x_max),
+                      fillcolor=_rgba(PALETTE["mut"], 0.14), line_width=0, layer="below")
+
+
+def time_chart(
+    traces: list[dict],
+    *,
+    title: str | None = None,
+    y_title: str | None = None,
+    height: int = 360,
+    recessions=None,
+    zero_line: bool = False,
+    hlines: list[dict] | None = None,
+    hbands: list[dict] | None = None,
+    suffix: str = "",
+    decimals: int = 2,
+    clip_outliers: bool = True,
 ) -> go.Figure:
+    """Grafico temporale.
+
+    ``traces``: dict con ``series`` (pd.Series), ``name`` e opzionali ``color``,
+    ``kind`` ('line' | 'bar'), ``dash``, ``width``, ``fill`` (bool), ``colors`` (per barre).
+    ``hlines``: dict con ``y``, ``label``, ``color``. ``hbands``: dict con ``y0``, ``y1``, ``color``.
     """
-    Crea un gauge chart stile manometro.
-    
-    Args:
-        value: Valore corrente da visualizzare
-        title: Titolo del gauge
-        gauge_range: [min, max] range del gauge
-        thresholds: Dict con 'green', 'yellow', 'red' ranges
-        target: Linea target opzionale
-        units: Unità di misura per display
-        delta_reference: Valore riferimento per delta
-        invert: Se True, inverte logica colori (alto=bene)
-        height: Altezza grafico
-        
-    Returns:
-        Plotly Figure object
-    """
-    if height is None:
-        height = GAUGE_CONFIG["height"]
-    
-    colors = GAUGE_CONFIG["colors"]
-    
-    # Default thresholds se non specificati
-    if thresholds is None:
-        range_span = gauge_range[1] - gauge_range[0]
-        thresholds = {
-            "green": [gauge_range[0], gauge_range[0] + range_span * 0.33],
-            "yellow": [gauge_range[0] + range_span * 0.33, gauge_range[0] + range_span * 0.66],
-            "red": [gauge_range[0] + range_span * 0.66, gauge_range[1]]
-        }
-    
-    # Costruisci steps per il gauge
+    fig = go.Figure()
+    x_min, x_max = None, None
+    for i, tr in enumerate(traces):
+        s: pd.Series = tr["series"]
+        if s is None or s.empty:
+            continue
+        x_min = s.index.min() if x_min is None else min(x_min, s.index.min())
+        x_max = s.index.max() if x_max is None else max(x_max, s.index.max())
+        color = tr.get("color", SERIES_COLORS[i % len(SERIES_COLORS)])
+        dec = tr.get("decimals", decimals)
+        suf = tr.get("suffix", suffix)
+        hover = f"{tr['name']}: %{{y:,.{dec}f}}{suf}<extra></extra>"
+        if tr.get("kind") == "bar":
+            colors = tr.get("colors")
+            if colors is None:
+                colors = [PALETTE["teal"] if v >= 0 else PALETTE["coral"] for v in s.to_numpy()]
+            fig.add_trace(go.Bar(x=s.index, y=s.to_numpy(), name=tr["name"], marker_color=colors,
+                                 marker_line_width=0, hovertemplate=hover, opacity=0.9))
+        else:
+            fig.add_trace(go.Scatter(
+                x=s.index, y=s.to_numpy(), name=tr["name"], mode="lines",
+                line=dict(color=color, width=tr.get("width", 2), dash=tr.get("dash")),
+                fill="tozeroy" if tr.get("fill") else None,
+                fillcolor=_rgba(color, 0.10) if tr.get("fill") else None,
+                hovertemplate=hover,
+            ))
+    shown = [tr["series"] for tr in traces if tr.get("series") is not None and not tr["series"].empty]
+    if shown and hbands:
+        all_vals = pd.concat(shown)
+        v_min, v_max = float(all_vals.min()), float(all_vals.max())
+        margin = 0.06 * ((v_max - v_min) or 1.0)
+        for band in hbands:
+            # la fascia non deve allargare l'asse oltre i dati mostrati
+            y0 = max(band["y0"], v_min - margin)
+            y1 = min(band["y1"], v_max + margin)
+            if y1 > y0:
+                fig.add_hrect(y0=y0, y1=y1, fillcolor=_rgba(band.get("color", PALETTE["mut"]), 0.08),
+                              line_width=0, layer="below")
+    if zero_line:
+        fig.add_hline(y=0, line_color=_rgba(PALETTE["txt"], 0.35), line_width=1)
+    for hl in hlines or []:
+        fig.add_hline(
+            y=hl["y"], line_dash=hl.get("dash", "dash"), line_width=1.2,
+            line_color=hl.get("color", _rgba(PALETTE["txt"], 0.6)),
+            annotation_text=hl.get("label"), annotation_position=hl.get("position", "top left"),
+            annotation_font=dict(size=11, color=hl.get("color", PALETTE["mut"])),
+        )
+    if x_min is not None and recessions:
+        add_recessions(fig, recessions, x_min, x_max)
+    fig.update_layout(
+        template=TEMPLATE, height=height, showlegend=len(traces) > 1, bargap=0.15,
+        title=dict(text=title, font=dict(size=15, color=PALETTE["txt"]), x=0, xanchor="left") if title else None,
+        margin=dict(t=48 if (title or len(traces) > 1) else 16, b=24, l=8, r=8),
+    )
+    fig.update_yaxes(title_text=y_title, ticksuffix=suffix.strip() if suffix.strip() in ("%",) else "")
+    if clip_outliers:
+        _clip_outliers(fig, traces, hlines or [])
+    _date_axis(fig)
+    _watermark(fig)
+    return fig
+
+
+def _clip_outliers(fig: go.Figure, traces: list[dict], hlines: list[dict]) -> None:
+    """Limita l'asse Y quando pochi valori estremi (es. 2020) schiaccerebbero il grafico."""
+    series = [tr["series"] for tr in traces if tr.get("series") is not None and not tr["series"].empty]
+    if not series:
+        return
+    values = pd.concat(series)
+    if len(values) < 40:
+        return
+    q1, q3 = values.quantile(0.25), values.quantile(0.75)
+    iqr = q3 - q1
+    if iqr <= 0:
+        return
+    fence_hi, fence_lo = q3 + 8 * iqr, q1 - 8 * iqr
+    too_high = values.max() > fence_hi
+    too_low = values.min() < fence_lo
+    if not (too_high or too_low):
+        return
+    inside = values[(values >= fence_lo) & (values <= fence_hi)]
+    pad = 0.08 * (inside.max() - inside.min() or iqr)
+    lo = inside.min() - pad
+    hi = inside.max() + pad
+    for hl in hlines:
+        lo, hi = min(lo, hl["y"] - pad), max(hi, hl["y"] + pad)
+    if any(tr.get("kind") == "bar" for tr in traces):
+        lo, hi = min(lo, 0), max(hi, 0)
+    fig.update_yaxes(range=[lo, hi])
+    fig.update_xaxes(title=dict(text="Scala verticale limitata: alcuni valori estremi (es. 2020) sono fuori grafico",
+                                font=dict(size=10, color=PALETTE["mut"]), standoff=6))
+
+
+def gauge(
+    value: float,
+    bands: list[Band],
+    rng: tuple[float, float],
+    *,
+    suffix: str = "",
+    decimals: int = 2,
+    target: float | None = None,
+    reference: float | None = None,
+    delta_color: str = "off",
+    height: int = 200,
+) -> go.Figure:
+    lo, hi = rng
     steps = []
-    color_order = ["green", "yellow", "red"] if not invert else ["red", "yellow", "green"]
-    
-    for color_name in color_order:
-        if color_name in thresholds:
-            steps.append({
-                "range": thresholds[color_name],
-                "color": colors[color_name]
-            })
-    
-    # Ordina steps per range
-    steps = sorted(steps, key=lambda x: x["range"][0])
-    
-    # Configura delta
-    delta_config = None
-    if delta_reference is not None:
-        delta_config = {
-            "reference": delta_reference,
-            "position": "bottom",
-            "relative": False,
-            "valueformat": ".2f"
-        }
-    
-    # Configura threshold line (target)
-    threshold_config = None
-    if target is not None:
-        threshold_config = {
-            "line": {"color": "white", "width": 3},
-            "thickness": 0.8,
-            "value": target
-        }
-    
-    # Formatta valore per display
-    if value is not None:
-        number_format = {"suffix": f" {units}" if units else "", "valueformat": ".2f"}
-    else:
-        number_format = {}
-        value = 0
-    
-    # Crea figura
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number" + ("+delta" if delta_config else ""),
+    for b in bands:
+        b_lo = lo if b.lo is None else max(b.lo, lo)
+        b_hi = hi if b.hi is None else min(b.hi, hi)
+        if b_hi > b_lo:
+            steps.append({"range": [b_lo, b_hi], "color": _rgba(LEVEL_COLORS[b.level], 0.82)})
+    up, down = PALETTE["teal"], PALETTE["coral"]
+    if delta_color == "inverse":
+        up, down = down, up
+    elif delta_color == "off":
+        up = down = PALETTE["mut"]
+    indicator = go.Indicator(
+        mode="gauge+number" + ("+delta" if reference is not None else ""),
         value=value,
-        number=number_format,
-        delta=delta_config,
-        title={"text": title, "font": {"size": 14, "color": "white"}},
+        number={"suffix": suffix, "valueformat": f",.{decimals}f",
+                "font": {"size": 30, "color": PALETTE["txt"], "family": FONT}},
+        delta={"reference": reference, "valueformat": f"+,.{decimals}f", "position": "bottom",
+               "increasing": {"color": up, "symbol": "▲ "}, "decreasing": {"color": down, "symbol": "▼ "},
+               "font": {"size": 13}} if reference is not None else None,
         gauge={
-            "axis": {
-                "range": gauge_range,
-                "tickcolor": "white",
-                "tickfont": {"color": "white", "size": 10}
-            },
-            "bar": {"color": colors["bar"], "thickness": 0.3},
-            "bgcolor": colors["background"],
+            "shape": "angular",
+            "axis": {"range": [lo, hi], "tickcolor": PALETTE["line2"], "tickwidth": 1,
+                     "tickfont": {"color": PALETTE["mut"], "size": 10}, "nticks": 6},
+            "bar": {"color": PALETTE["txt"], "thickness": 0.22},
+            "bgcolor": PALETTE["card2"],
             "borderwidth": 0,
             "steps": steps,
-            "threshold": threshold_config
-        }
-    ))
-    
-    # Layout
-    fig.update_layout(
-        height=height,
-        margin=GAUGE_CONFIG["margin"],
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "white"}
+            "threshold": ({"line": {"color": "#FFFFFF", "width": 3}, "thickness": 0.9, "value": target}
+                          if target is not None else None),
+        },
     )
-    
+    fig = go.Figure(indicator)
+    fig.update_layout(template=TEMPLATE, height=height, margin=dict(t=18, b=6, l=26, r=26))
     return fig
 
 
-def create_gauge_row(
-    indicators_data: List[Dict],
-    columns: int = 4
-) -> go.Figure:
-    """
-    Crea una riga di gauge multipli.
-    
-    Args:
-        indicators_data: Lista di dict con dati per ogni gauge
-        columns: Numero di colonne
-        
-    Returns:
-        Plotly Figure con subplot di gauge
-    """
-    n_indicators = len(indicators_data)
-    rows = (n_indicators + columns - 1) // columns
-    
-    fig = make_subplots(
-        rows=rows,
-        cols=columns,
-        specs=[[{"type": "indicator"} for _ in range(columns)] for _ in range(rows)],
-        vertical_spacing=0.15,
-        horizontal_spacing=0.05
-    )
-    
-    for i, data in enumerate(indicators_data):
-        row = i // columns + 1
-        col = i % columns + 1
-        
-        gauge = create_gauge(**data)
-        
-        for trace in gauge.data:
-            fig.add_trace(trace, row=row, col=col)
-    
-    fig.update_layout(
-        height=GAUGE_CONFIG["height"] * rows,
-        margin={"t": 30, "b": 10, "l": 10, "r": 10},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)"
-    )
-    
-    return fig
-
-
-# =============================================================================
-# LINE CHARTS
-# =============================================================================
-
-def create_line_chart(
-    df: pd.DataFrame,
-    title: str,
-    y_label: str = "",
-    color: str = "#1f77b4",
-    show_recessions: bool = True,
-    height: int = 400,
-    show_zero_line: bool = False
-) -> go.Figure:
-    """
-    Crea un line chart singolo.
-    
-    Args:
-        df: DataFrame con colonne ['date', 'value']
-        title: Titolo del grafico
-        y_label: Label asse Y
-        color: Colore linea
-        show_recessions: Se mostrare bande recessioni
-        height: Altezza grafico
-        show_zero_line: Se mostrare linea zero
-        
-    Returns:
-        Plotly Figure
-    """
+def yield_curve(curves: list[dict], height: int = 380) -> go.Figure:
+    """``curves``: dict con ``name``, ``x`` (scadenze), ``y`` (rendimenti), ``color``, ``dash``."""
     fig = go.Figure()
-    
-    # Aggiungi recession bands se richiesto
-    if show_recessions and not df.empty:
-        min_date = df["date"].min()
-        max_date = df["date"].max()
-        
-        for start, end in RECESSIONS:
-            rec_start = pd.to_datetime(start)
-            rec_end = pd.to_datetime(end)
-            
-            # Solo se overlap con range dati
-            if rec_end >= min_date and rec_start <= max_date:
-                fig.add_vrect(
-                    x0=max(rec_start, min_date),
-                    x1=min(rec_end, max_date),
-                    fillcolor="rgba(128, 128, 128, 0.2)",
-                    layer="below",
-                    line_width=0
-                )
-    
-    # Linea principale
-    if not df.empty:
+    for c in curves:
         fig.add_trace(go.Scatter(
-            x=df["date"],
-            y=df["value"],
-            mode="lines",
-            name=title,
-            line={"color": color, "width": 2},
-            hovertemplate="%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+            x=c["x"], y=c["y"], name=c["name"], mode="lines+markers",
+            line=dict(color=c["color"], width=c.get("width", 2.5), dash=c.get("dash")),
+            marker=dict(size=c.get("marker", 8), color=c["color"]),
+            hovertemplate=f"{c['name']}: %{{y:,.2f}}%<extra></extra>",
         ))
-    
-    # Zero line opzionale
-    if show_zero_line:
-        fig.add_hline(
-            y=0,
-            line_dash="dash",
-            line_color="rgba(255,255,255,0.5)",
-            line_width=1
-        )
-    
-    # Layout
-    fig.update_layout(
-        title={"text": title, "font": {"size": 16}},
-        xaxis={"title": "", "gridcolor": "rgba(128,128,128,0.2)", "showgrid": True},
-        yaxis={"title": y_label, "gridcolor": "rgba(128,128,128,0.2)", "showgrid": True},
-        height=height,
-        margin={"t": 50, "b": 40, "l": 60, "r": 20},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "white"},
-        hovermode="x unified",
-        showlegend=False
-    )
-    
+    fig.update_layout(template=TEMPLATE, height=height, hovermode="x unified",
+                      margin=dict(t=40, b=24, l=8, r=8))
+    fig.update_yaxes(ticksuffix="%")
+    fig.update_xaxes(type="category", title_text="Scadenza")
+    _watermark(fig)
     return fig
-
-
-def create_multi_line_chart(
-    data_dict: Dict[str, pd.DataFrame],
-    title: str,
-    y_label: str = "",
-    colors: Dict[str, str] = None,
-    show_recessions: bool = True,
-    height: int = 450,
-    show_zero_line: bool = False,
-    show_legend: bool = True
-) -> go.Figure:
-    """
-    Crea un line chart con multiple serie.
-    
-    Args:
-        data_dict: Dict con chiave=nome serie, valore=DataFrame
-        title: Titolo del grafico
-        y_label: Label asse Y
-        colors: Dict con colori per serie
-        show_recessions: Se mostrare bande recessioni
-        height: Altezza grafico
-        show_zero_line: Se mostrare linea zero
-        show_legend: Se mostrare legenda
-        
-    Returns:
-        Plotly Figure
-    """
-    fig = go.Figure()
-    
-    # Default colors
-    default_colors = [
-        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
-        "#9467bd", "#8c564b", "#e377c2", "#bcbd22"
-    ]
-    
-    if colors is None:
-        colors = {}
-    
-    # Trova range date complessivo
-    all_dates = []
-    for df in data_dict.values():
-        if not df.empty:
-            all_dates.extend(df["date"].tolist())
-    
-    # Recession bands
-    if show_recessions and all_dates:
-        min_date = min(all_dates)
-        max_date = max(all_dates)
-        
-        for start, end in RECESSIONS:
-            rec_start = pd.to_datetime(start)
-            rec_end = pd.to_datetime(end)
-            
-            if rec_end >= min_date and rec_start <= max_date:
-                fig.add_vrect(
-                    x0=max(rec_start, min_date),
-                    x1=min(rec_end, max_date),
-                    fillcolor="rgba(128, 128, 128, 0.2)",
-                    layer="below",
-                    line_width=0
-                )
-    
-    # Aggiungi ogni serie
-    for i, (name, df) in enumerate(data_dict.items()):
-        if df.empty:
-            continue
-        
-        color = colors.get(name, default_colors[i % len(default_colors)])
-        
-        fig.add_trace(go.Scatter(
-            x=df["date"],
-            y=df["value"],
-            mode="lines",
-            name=name,
-            line={"color": color, "width": 2},
-            hovertemplate=f"{name}<br>%{{x|%Y-%m-%d}}<br>%{{y:.2f}}<extra></extra>"
-        ))
-    
-    # Zero line opzionale
-    if show_zero_line:
-        fig.add_hline(
-            y=0,
-            line_dash="dash",
-            line_color="rgba(255,255,255,0.5)",
-            line_width=1
-        )
-    
-    # Layout
-    fig.update_layout(
-        title={"text": title, "font": {"size": 16}},
-        xaxis={"title": "", "gridcolor": "rgba(128,128,128,0.2)", "showgrid": True},
-        yaxis={"title": y_label, "gridcolor": "rgba(128,128,128,0.2)", "showgrid": True},
-        height=height,
-        margin={"t": 50, "b": 40, "l": 60, "r": 20},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "white"},
-        hovermode="x unified",
-        showlegend=show_legend,
-        legend={
-            "orientation": "h",
-            "yanchor": "bottom",
-            "y": 1.02,
-            "xanchor": "right",
-            "x": 1
-        }
-    )
-    
-    return fig
-
-
-# =============================================================================
-# YIELD CURVE CHART
-# =============================================================================
-
-def create_yield_curve(
-    yields_data: Dict[str, float],
-    title: str = "Yield Curve",
-    height: int = 350
-) -> go.Figure:
-    """
-    Crea grafico yield curve snapshot.
-    
-    Args:
-        yields_data: Dict con maturity -> yield (es. {"1Y": 4.5, "2Y": 4.3, ...})
-        title: Titolo grafico
-        height: Altezza
-        
-    Returns:
-        Plotly Figure
-    """
-    maturities = list(yields_data.keys())
-    values = list(yields_data.values())
-    
-    # Determina colore basato su inversione
-    if len(values) >= 2 and values[-1] < values[0]:
-        color = "#ff4444"  # Invertita = rosso
-    else:
-        color = "#00cc66"  # Normale = verde
-    
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter(
-        x=maturities,
-        y=values,
-        mode="lines+markers",
-        line={"color": color, "width": 3},
-        marker={"size": 10, "color": color},
-        hovertemplate="%{x}: %{y:.2f}%<extra></extra>"
-    ))
-    
-    fig.update_layout(
-        title={"text": title, "font": {"size": 16}},
-        xaxis={"title": "Maturity", "gridcolor": "rgba(128,128,128,0.2)"},
-        yaxis={"title": "Yield %", "gridcolor": "rgba(128,128,128,0.2)"},
-        height=height,
-        margin={"t": 50, "b": 40, "l": 60, "r": 20},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "white"}
-    )
-    
-    return fig
-
-
-# =============================================================================
-# SPARKLINE (mini chart per tabelle)
-# =============================================================================
-
-def create_sparkline(
-    values: List[float],
-    width: int = 150,
-    height: int = 40,
-    color: str = "#1f77b4"
-) -> go.Figure:
-    """
-    Crea mini sparkline chart.
-    
-    Args:
-        values: Lista valori
-        width: Larghezza
-        height: Altezza
-        color: Colore linea
-        
-    Returns:
-        Plotly Figure
-    """
-    # Determina colore trend
-    if len(values) >= 2:
-        if values[-1] > values[0]:
-            color = "#00cc66"
-        elif values[-1] < values[0]:
-            color = "#ff4444"
-    
-    fig = go.Figure(go.Scatter(
-        y=values,
-        mode="lines",
-        line={"color": color, "width": 1.5},
-        fill="tozeroy",
-        fillcolor=f"rgba{tuple(list(bytes.fromhex(color[1:])) + [0.2])}"
-    ))
-    
-    fig.update_layout(
-        width=width,
-        height=height,
-        margin={"t": 0, "b": 0, "l": 0, "r": 0},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis={"visible": False},
-        yaxis={"visible": False},
-        showlegend=False
-    )
-    
-    return fig
-
-
-# =============================================================================
-# HELPER: Metric Card HTML
-# =============================================================================
-
-def format_delta_color(delta: float, invert: bool = False) -> str:
-    """Ritorna colore CSS per delta."""
-    if delta is None:
-        return "gray"
-    
-    if invert:
-        return "#00cc66" if delta > 0 else "#ff4444" if delta < 0 else "gray"
-    else:
-        return "#ff4444" if delta > 0 else "#00cc66" if delta < 0 else "gray"
-
-
-def format_value(value: float, decimals: int = 2) -> str:
-    """Formatta valore numerico."""
-    if value is None:
-        return "N/A"
-    return f"{value:,.{decimals}f}"

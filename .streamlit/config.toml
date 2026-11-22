@@ -1,26 +1,35 @@
-# FRED Macro Dashboard - Streamlit Configuration
-# ==============================================
+# Macro Dashboard USA - configurazione Streamlit
+# Palette allineata a kriterionquant.it
 
 [theme]
-# Colori principali
-primaryColor = "#1f77b4"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#fafafa"
+base = "dark"
+primaryColor = "#00E5A0"
+backgroundColor = "#090C12"
+secondaryBackgroundColor = "#121A27"
+textColor = "#EAF0F8"
+borderColor = "#222C3C"
+linkColor = "#16C8C8"
+greenColor = "#00E5A0"
+redColor = "#FF5470"
+yellowColor = "#FFC24B"
+orangeColor = "#FFC24B"
+blueColor = "#4F9DFF"
+violetColor = "#C77DFF"
+grayColor = "#8B97AA"
+font = "sans-serif"
+baseRadius = "0.6rem"
+showWidgetBorder = true
+chartCategoricalColors = ["#00E5A0", "#4F9DFF", "#FFC24B", "#C77DFF", "#16C8C8", "#FF5470", "#9AA7BD"]
 
-# Font
-font = "sans serif"
+[theme.sidebar]
+backgroundColor = "#0D121C"
+secondaryBackgroundColor = "#121A27"
 
 [server]
-# Configurazioni server
-maxUploadSize = 50
 enableXsrfProtection = true
 
 [browser]
-# Configurazioni browser
 gatherUsageStats = false
 
 [client]
-# Toolbar e sidebar
-showSidebarNavigation = true
 toolbarMode = "minimal"

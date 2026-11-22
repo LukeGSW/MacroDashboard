@@ -1,16 +1,10 @@
 """
-FRED Macro Dashboard - Utils Package
-=====================================
-Moduli di utilità per fetch dati e visualizzazioni.
+Macro Dashboard USA - moduli di supporto
+========================================
+- ``data``: download e cache delle serie FRED®, calendario uscite
+- ``transforms``: trasformazioni delle serie (a/a, annualizzati, ...)
+- ``signals``: valutazione degli indicatori e delle soglie definite in ``catalog``
+- ``charts``: grafici Plotly con lo stile Kriterion Quant
+- ``ui``: componenti di interfaccia condivisi
+- ``fmt``: formattazione all'italiana
 """
-
-from utils.fred_api import FredClient, get_fred_client
-from utils.charts import create_gauge, create_line_chart, create_multi_line_chart
-
-__all__ = [
-    "FredClient",
-    "get_fred_client", 
-    "create_gauge",
-    "create_line_chart",
-    "create_multi_line_chart"
-]

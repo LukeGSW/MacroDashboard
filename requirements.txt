@@ -1,21 +1,7 @@
-# FRED Macro Dashboard - Requirements
-# ====================================
-
-# Core Framework
-streamlit>=1.28.0
-
-# Data Processing
-pandas>=2.0.0
-numpy>=1.24.0
-
-# FRED API
-fredapi>=0.5.1
-
-# Visualization
-plotly>=5.18.0
-
-# Date handling
-python-dateutil>=2.8.2
-
-# HTTP requests (backup per FRED)
+# Macro Dashboard USA - dipendenze
+# Versioni minime testate; Streamlit Community Cloud installa l'ultima versione compatibile.
+streamlit>=1.67.0
+plotly>=6.0.0
+pandas>=2.2.0
+numpy>=1.26.0
 requests>=2.31.0

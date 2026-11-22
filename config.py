@@ -1,468 +1,112 @@
 """
-FRED Macro Dashboard - Configuration
-=====================================
-Configurazione centralizzata di tutti gli indicatori FRED,
-soglie per gauge, metadata e parametri di visualizzazione.
+Macro Dashboard USA - Configurazione generale
+==============================================
+Brand, link, parametri dell'app e testi legali. Gli indicatori, le soglie e
+i tooltip stanno in ``catalog.py``.
 """
 
+from __future__ import annotations
+
 # =============================================================================
-# INDICATORI FRED PER SEZIONE
+# BRAND (palette presa dalle variabili CSS di kriterionquant.it)
 # =============================================================================
 
-INDICATORS = {
-    
-    # -------------------------------------------------------------------------
-    # SNAPSHOT - KPI Principali (8 indicatori chiave)
-    # -------------------------------------------------------------------------
-    "snapshot": {
-        "CPIAUCSL": {
-            "name": "CPI (Inflazione)",
-            "description": "Consumer Price Index - All Urban Consumers",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",  # Calcola Year-over-Year
-            "gauge_range": [0, 10],
-            "thresholds": {"green": [0, 2.5], "yellow": [2.5, 4], "red": [4, 10]},
-            "target": 2.0,
-            "invert": False  # False = alto è male, True = alto è bene
-        },
-        "PCEPILFE": {
-            "name": "Core PCE",
-            "description": "PCE Excluding Food and Energy (Fed's preferred)",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "gauge_range": [0, 8],
-            "thresholds": {"green": [0, 2.5], "yellow": [2.5, 3.5], "red": [3.5, 8]},
-            "target": 2.0,
-            "invert": False
-        },
-        "FEDFUNDS": {
-            "name": "Fed Funds Rate",
-            "description": "Federal Funds Effective Rate",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "gauge_range": [0, 8],
-            "thresholds": {"green": [0, 3], "yellow": [3, 5], "red": [5, 8]},
-            "target": None,
-            "invert": False
-        },
-        "UNRATE": {
-            "name": "Disoccupazione",
-            "description": "Unemployment Rate",
-            "frequency": "Monthly",
-            "units": "%",
-            "transform": "level",
-            "gauge_range": [0, 15],
-            "thresholds": {"green": [0, 4.5], "yellow": [4.5, 6], "red": [6, 15]},
-            "target": 4.0,
-            "invert": False
-        },
-        "T10Y2Y": {
-            "name": "Yield Curve 10Y-2Y",
-            "description": "10-Year Treasury Minus 2-Year Treasury",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "gauge_range": [-3, 3],
-            "thresholds": {"red": [-3, 0], "yellow": [0, 0.5], "green": [0.5, 3]},
-            "target": 0,
-            "invert": True  # Negativo = recessione warning
-        },
-        "UMCSENT": {
-            "name": "Consumer Sentiment",
-            "description": "University of Michigan Consumer Sentiment",
-            "frequency": "Monthly",
-            "units": "Index",
-            "transform": "level",
-            "gauge_range": [40, 120],
-            "thresholds": {"red": [40, 60], "yellow": [60, 80], "green": [80, 120]},
-            "target": 80,
-            "invert": True
-        },
-        "BAMLH0A0HYM2": {
-            "name": "HY Spread",
-            "description": "ICE BofA US High Yield Option-Adjusted Spread",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "gauge_range": [0, 12],
-            "thresholds": {"green": [0, 4], "yellow": [4, 6], "red": [6, 12]},
-            "target": 3.5,
-            "invert": False  # Alto spread = stress
-        },
-        "INDPRO": {
-            "name": "Industrial Production",
-            "description": "Industrial Production Index",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "gauge_range": [-15, 15],
-            "thresholds": {"red": [-15, 0], "yellow": [0, 2], "green": [2, 15]},
-            "target": 2.0,
-            "invert": True
-        }
-    },
-    
-    # -------------------------------------------------------------------------
-    # INFLAZIONE
-    # -------------------------------------------------------------------------
-    "inflazione": {
-        "CPIAUCSL": {
-            "name": "CPI All Items",
-            "description": "Consumer Price Index for All Urban Consumers",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "color": "#1f77b4"
-        },
-        "CPILFESL": {
-            "name": "Core CPI",
-            "description": "CPI Excluding Food and Energy",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "color": "#ff7f0e"
-        },
-        "PCEPI": {
-            "name": "PCE",
-            "description": "Personal Consumption Expenditures Price Index",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "color": "#2ca02c"
-        },
-        "PCEPILFE": {
-            "name": "Core PCE",
-            "description": "PCE Excluding Food and Energy",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "color": "#d62728"
-        },
-        "PPIFIS": {
-            "name": "PPI Final Demand",
-            "description": "Producer Price Index - Final Demand",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "color": "#9467bd"
-        },
-        "T5YIE": {
-            "name": "5Y Breakeven Inflation",
-            "description": "5-Year Breakeven Inflation Rate",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#8c564b"
-        },
-        "T10YIE": {
-            "name": "10Y Breakeven Inflation",
-            "description": "10-Year Breakeven Inflation Rate",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#e377c2"
-        }
-    },
-    
-    # -------------------------------------------------------------------------
-    # LAVORO
-    # -------------------------------------------------------------------------
-    "lavoro": {
-        "UNRATE": {
-            "name": "Unemployment Rate",
-            "description": "Civilian Unemployment Rate",
-            "frequency": "Monthly",
-            "units": "%",
-            "transform": "level",
-            "color": "#1f77b4"
-        },
-        "U6RATE": {
-            "name": "U6 Unemployment",
-            "description": "Total Unemployed + Marginally Attached + Part-Time",
-            "frequency": "Monthly",
-            "units": "%",
-            "transform": "level",
-            "color": "#ff7f0e"
-        },
-        "ICSA": {
-            "name": "Initial Claims",
-            "description": "Initial Jobless Claims (Weekly)",
-            "frequency": "Weekly",
-            "units": "Thousands",
-            "transform": "level",
-            "color": "#2ca02c"
-        },
-        "CCSA": {
-            "name": "Continuing Claims",
-            "description": "Continued Claims (Insured Unemployment)",
-            "frequency": "Weekly",
-            "units": "Thousands",
-            "transform": "level",
-            "color": "#d62728"
-        },
-        "PAYEMS": {
-            "name": "Nonfarm Payrolls",
-            "description": "All Employees, Total Nonfarm",
-            "frequency": "Monthly",
-            "units": "MoM Change (K)",
-            "transform": "mom_diff",
-            "color": "#9467bd"
-        },
-        "CIVPART": {
-            "name": "Labor Participation",
-            "description": "Civilian Labor Force Participation Rate",
-            "frequency": "Monthly",
-            "units": "%",
-            "transform": "level",
-            "color": "#8c564b"
-        }
-    },
-    
-    # -------------------------------------------------------------------------
-    # TASSI E YIELD CURVE
-    # -------------------------------------------------------------------------
-    "tassi": {
-        "FEDFUNDS": {
-            "name": "Fed Funds Rate",
-            "description": "Federal Funds Effective Rate",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#1f77b4"
-        },
-        "DGS1": {
-            "name": "Treasury 1Y",
-            "description": "1-Year Treasury Constant Maturity",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#aec7e8"
-        },
-        "DGS2": {
-            "name": "Treasury 2Y",
-            "description": "2-Year Treasury Constant Maturity",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#ff7f0e"
-        },
-        "DGS5": {
-            "name": "Treasury 5Y",
-            "description": "5-Year Treasury Constant Maturity",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#2ca02c"
-        },
-        "DGS10": {
-            "name": "Treasury 10Y",
-            "description": "10-Year Treasury Constant Maturity",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#d62728"
-        },
-        "DGS30": {
-            "name": "Treasury 30Y",
-            "description": "30-Year Treasury Constant Maturity",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#9467bd"
-        },
-        "T10Y2Y": {
-            "name": "Spread 10Y-2Y",
-            "description": "10-Year Treasury Minus 2-Year Treasury",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#e377c2"
-        },
-        "T10Y3M": {
-            "name": "Spread 10Y-3M",
-            "description": "10-Year Treasury Minus 3-Month Treasury",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#bcbd22"
-        }
-    },
-    
-    # -------------------------------------------------------------------------
-    # HOUSING
-    # -------------------------------------------------------------------------
-    "housing": {
-        "HOUST": {
-            "name": "Housing Starts",
-            "description": "Housing Starts: Total (SAAR)",
-            "frequency": "Monthly",
-            "units": "Thousands",
-            "transform": "level",
-            "color": "#1f77b4"
-        },
-        "PERMIT": {
-            "name": "Building Permits",
-            "description": "New Private Housing Units Authorized",
-            "frequency": "Monthly",
-            "units": "Thousands",
-            "transform": "level",
-            "color": "#ff7f0e"
-        },
-        "CSUSHPINSA": {
-            "name": "Case-Shiller Index",
-            "description": "S&P/Case-Shiller U.S. National Home Price Index",
-            "frequency": "Monthly",
-            "units": "% YoY",
-            "transform": "yoy",
-            "color": "#2ca02c"
-        },
-        "MORTGAGE30US": {
-            "name": "Mortgage 30Y",
-            "description": "30-Year Fixed Rate Mortgage Average",
-            "frequency": "Weekly",
-            "units": "%",
-            "transform": "level",
-            "color": "#d62728"
-        },
-        "MSPUS": {
-            "name": "Median Sale Price",
-            "description": "Median Sales Price of Houses Sold",
-            "frequency": "Quarterly",
-            "units": "USD",
-            "transform": "level",
-            "color": "#9467bd"
-        },
-        "RRVRUSQ156N": {
-            "name": "Rental Vacancy",
-            "description": "Rental Vacancy Rate",
-            "frequency": "Quarterly",
-            "units": "%",
-            "transform": "level",
-            "color": "#8c564b"
-        }
-    },
-    
-    # -------------------------------------------------------------------------
-    # SENTIMENT E FINANCIAL CONDITIONS
-    # -------------------------------------------------------------------------
-    "sentiment": {
-        "UMCSENT": {
-            "name": "Michigan Sentiment",
-            "description": "University of Michigan Consumer Sentiment",
-            "frequency": "Monthly",
-            "units": "Index",
-            "transform": "level",
-            "color": "#1f77b4"
-        },
-        "PSAVERT": {
-            "name": "Personal Savings Rate",
-            "description": "Personal Saving Rate",
-            "frequency": "Monthly",
-            "units": "%",
-            "transform": "level",
-            "color": "#ff7f0e"
-        },
-        "BAMLH0A0HYM2": {
-            "name": "HY Credit Spread",
-            "description": "ICE BofA US High Yield OAS",
-            "frequency": "Daily",
-            "units": "%",
-            "transform": "level",
-            "color": "#d62728"
-        },
-        "STLFSI4": {
-            "name": "Financial Stress Index",
-            "description": "St. Louis Fed Financial Stress Index",
-            "frequency": "Weekly",
-            "units": "Index",
-            "transform": "level",
-            "color": "#2ca02c"
-        },
-        "DRTSCILM": {
-            "name": "Bank Lending Standards",
-            "description": "Net % Banks Tightening C&I Loans",
-            "frequency": "Quarterly",
-            "units": "%",
-            "transform": "level",
-            "color": "#9467bd"
-        },
-        "VIXCLS": {
-            "name": "VIX",
-            "description": "CBOE Volatility Index",
-            "frequency": "Daily",
-            "units": "Index",
-            "transform": "level",
-            "color": "#e377c2"
-        }
-    }
+APP_NAME = "Macro Dashboard USA"
+BRAND = "Kriterion Quant"
+
+PALETTE = {
+    "bg": "#090C12",
+    "bg2": "#0D121C",
+    "card": "#121A27",
+    "card2": "#0F1622",
+    "line": "#222C3C",
+    "line2": "#2C3A50",
+    "txt": "#EAF0F8",
+    "mut": "#8B97AA",
+    "teal": "#00E5A0",
+    "teal2": "#16C8C8",
+    "coral": "#FF5470",
+    "gold": "#FFC24B",
+    "violet": "#C77DFF",
+    "blue": "#4F9DFF",
 }
 
-
-# =============================================================================
-# CONFIGURAZIONE GAUGE DEFAULT
-# =============================================================================
-
-GAUGE_CONFIG = {
-    "height": 250,
-    "margin": {"t": 50, "b": 20, "l": 30, "r": 30},
-    "colors": {
-        "green": "#00cc66",
-        "yellow": "#ffcc00",
-        "red": "#ff4444",
-        "bar": "#1f77b4",
-        "background": "#262730"
-    }
+# Colori dei semafori: verde = equilibrio, giallo = da monitorare, rosso = squilibrio/stress
+LEVEL_COLORS = {
+    "ok": PALETTE["teal"],
+    "warn": PALETTE["gold"],
+    "bad": PALETTE["coral"],
+    "neutral": PALETTE["mut"],
 }
+LEVEL_EMOJI = {"ok": "🟢", "warn": "🟡", "bad": "🔴", "neutral": "⚪"}
+LEVEL_NAME = {"ok": "Verde", "warn": "Giallo", "bad": "Rosso", "neutral": "Neutro"}
+LEVEL_SCORE = {"ok": 2, "warn": 1, "bad": 0}
 
-
-# =============================================================================
-# PARAMETRI TEMPORALI
-# =============================================================================
-
-TIME_CONFIG = {
-    "default_years": 10,
-    "max_years": 50,
-    "cache_ttl_hours": 4
-}
-
-
-# =============================================================================
-# RECESSION PERIODS (per shading nei grafici)
-# =============================================================================
-
-RECESSIONS = [
-    ("1980-01-01", "1980-07-01"),
-    ("1981-07-01", "1982-11-01"),
-    ("1990-07-01", "1991-03-01"),
-    ("2001-03-01", "2001-11-01"),
-    ("2007-12-01", "2009-06-01"),
-    ("2020-02-01", "2020-04-01")
+# Colori delle serie nei grafici (ordine di utilizzo)
+SERIES_COLORS = [
+    PALETTE["teal"],
+    PALETTE["blue"],
+    PALETTE["gold"],
+    PALETTE["violet"],
+    PALETTE["teal2"],
+    PALETTE["coral"],
+    "#9AA7BD",
 ]
 
+# =============================================================================
+# LINK IN TESTA ALLA DASHBOARD
+# =============================================================================
+
+_UTM = "utm_source=macro-dashboard&utm_medium=referral&utm_campaign=header"
+HEADER_LINKS = [
+    ("Blog", f"https://kriterionquant.it/blog/?{_UTM}"),
+    ("Chi sono", f"https://kriterionquant.it/chi-sono.html?{_UTM}"),
+]
 
 # =============================================================================
-# HELPER FUNCTIONS
+# PARAMETRI APP
 # =============================================================================
 
-def get_section_indicators(section: str) -> dict:
-    """Ritorna gli indicatori per una sezione specifica."""
-    return INDICATORS.get(section, {})
+CACHE_TTL_HOURS = 4          # validita' della cache delle serie FRED
+CALENDAR_TTL_HOURS = 6       # validita' della cache del calendario uscite
+PERCENTILE_START = "1990-01-01"  # base storica per i percentili
+PERIOD_OPTIONS = {"1A": 1, "3A": 3, "5A": 5, "10A": 10, "20A": 20, "Max": None}
+DEFAULT_PERIOD = "10A"
 
+# =============================================================================
+# TESTI LEGALI
+# =============================================================================
 
-def get_all_indicator_codes() -> list:
-    """Ritorna lista unica di tutti i codici FRED."""
-    codes = set()
-    for section in INDICATORS.values():
-        codes.update(section.keys())
-    return list(codes)
+FRED_NOTICE = (
+    "This product uses the FRED® API but is not endorsed or certified by "
+    "the Federal Reserve Bank of St. Louis."
+)
+FRED_NOTICE_IT = (
+    "Questo prodotto usa l'API FRED® ma non è approvato né certificato "
+    "dalla Federal Reserve Bank of St. Louis."
+)
+FRED_TOU_URL = "https://fred.stlouisfed.org/docs/api/terms_of_use.html"
+HOSTING_PRIVACY_URL = "https://streamlit.io/privacy-policy"
 
+DISCLAIMER_SHORT = (
+    "Contenuti a solo scopo informativo ed educativo: non costituiscono consulenza "
+    "finanziaria né sollecitazione all'investimento. Soglie e semafori sono "
+    "convenzioni indicative, non segnali operativi."
+)
 
-def get_indicator_config(code: str) -> dict:
-    """Cerca la configurazione di un indicatore in tutte le sezioni."""
-    for section in INDICATORS.values():
-        if code in section:
-            return section[code]
-    return {}
+DISCLAIMER_FULL = """
+**Natura dei contenuti.** Questa dashboard ha finalità esclusivamente informative ed
+educative. Nulla di quanto mostrato costituisce consulenza in materia di investimenti,
+raccomandazione personalizzata, ricerca in materia di investimenti, offerta o
+sollecitazione all'acquisto o alla vendita di strumenti finanziari.
+
+**Soglie e semafori.** I colori (verde, giallo, rosso) e le etichette sono convenzioni
+indicative costruite su riferimenti pubblici (obiettivi della Federal Reserve, stime
+ufficiali, distribuzioni storiche). Non sono segnali operativi e non prevedono
+l'andamento dei mercati. Ogni soglia è indicata nel tooltip ⓘ del relativo indicatore.
+
+**Dati.** I dati provengono da fonti pubbliche tramite l'API FRED® e possono contenere
+errori, ritardi o revisioni successive. L'autore non garantisce completezza,
+accuratezza o aggiornamento dei dati e non risponde di decisioni prese sulla base
+di questa dashboard. I risultati passati non sono indicativi di quelli futuri.
+"""
