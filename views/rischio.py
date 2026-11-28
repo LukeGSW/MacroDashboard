@@ -89,6 +89,11 @@ def _months(a: pd.Timestamp, b: pd.Timestamp) -> int:
     return (b.year - a.year) * 12 + (b.month - a.month)
 
 
+def _months_text(n: int | None) -> str:
+    """Mesi come testo, con '—' quando il dato non si applica (altrimenti la tabella mostra 'None')."""
+    return "—" if n is None else str(n)
+
+
 def curve_table(series_id: str, label: str) -> pd.DataFrame:
     s = T.clean(d.get(series_id))
     if s.empty:
@@ -112,13 +117,10 @@ def curve_table(series_id: str, label: str) -> pd.DataFrame:
             "Inizio inversione": fmt.date_label(start, "M"),
             "Fine inversione": fmt.date_label(end, "M") if end is not None else "In corso",
             "Recessione successiva": fmt.date_label(rec, "M") if rec is not None and lead <= 36 else "—",
-            "Mesi di anticipo": lead if rec is not None and lead <= 36 else None,
+            "Mesi di anticipo": _months_text(lead if rec is not None and lead <= 36 else None),
             "Esito": outcome,
         })
-    df = pd.DataFrame(rows)
-    if not df.empty:
-        df["Mesi di anticipo"] = pd.array(df["Mesi di anticipo"].tolist(), dtype="Int64")
-    return df
+    return pd.DataFrame(rows)
 
 
 def sahm_table() -> pd.DataFrame:
@@ -130,13 +132,10 @@ def sahm_table() -> pd.DataFrame:
         rows.append({
             "Attivazione": fmt.date_label(trig, "M"),
             "Inizio recessione più vicino": fmt.date_label(rec, "M") if rec is not None else "—",
-            "Mesi dopo l'inizio": _months(rec, trig) if rec is not None else None,
+            "Mesi dopo l'inizio": _months_text(_months(rec, trig) if rec is not None else None),
             "Esito": "In linea con una recessione" if rec is not None else "Falso allarme",
         })
-    df = pd.DataFrame(rows)
-    if not df.empty:
-        df["Mesi dopo l'inizio"] = pd.array(df["Mesi dopo l'inizio"].tolist(), dtype="Int64")
-    return df
+    return pd.DataFrame(rows)
 
 
 t1, t2, t3 = st.tabs(["Curva 10A-3M", "Curva 10A-2A", "Regola di Sahm"])
@@ -147,7 +146,7 @@ for tab, sid, lab in ((t1, "T10Y3M", "10A-3M"), (t2, "T10Y2Y", "10A-2A")):
             st.info("Dati non disponibili.")
             continue
         st.dataframe(tbl, hide_index=True, width="stretch",
-                     column_config={"Mesi di anticipo": st.column_config.NumberColumn(format="%d")})
+                     column_config={"Mesi di anticipo": st.column_config.TextColumn(alignment="right")})
         hits = (tbl["Esito"] == "Seguita da recessione").sum()
         misses = (tbl["Esito"] == "Nessuna recessione entro 24 mesi").sum()
         first_year = T.clean(d.get(sid)).index.min().year
@@ -167,7 +166,7 @@ with t3:
         st.info("Dati non disponibili.")
     else:
         st.dataframe(tbl, hide_index=True, width="stretch",
-                     column_config={"Mesi dopo l'inizio": st.column_config.NumberColumn(format="%d")})
+                     column_config={"Mesi dopo l'inizio": st.column_config.TextColumn(alignment="right")})
         st.caption("La regola si attiva in genere a recessione già iniziata: è una conferma tempestiva più "
                    "che un anticipo. Un falso allarme è possibile quando la disoccupazione sale per un aumento "
                    "dell'offerta di lavoro (come nel 2024) invece che per licenziamenti.")
